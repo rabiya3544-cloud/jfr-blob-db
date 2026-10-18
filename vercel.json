@@ -1,13 +1,16 @@
 {
   "functions": {
+    "api/backup.js": {
+      "maxDuration": 300
+    },
     "api/*": {
       "maxDuration": 10
     }
   },
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "/public/index.html"
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }
