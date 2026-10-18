@@ -8,6 +8,7 @@
     "@aws-sdk/s3-request-presigner": "^3.500.0",
     "@vercel/blob": "^2.8.0",
     "formidable": "^3.5.1",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "archiver": "^7.0.1"
   }
 }
