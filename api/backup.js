@@ -2,6 +2,11 @@ import { list } from '@vercel/blob';
 import archiver from 'archiver';
 import path from 'node:path';
 
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 function safeRelative(p) {
   const n = path.posix.normalize(p.replace(/^\/+/, ''));
   if (n === '..' || n.startsWith('../') || path.isAbsolute(n)) {
@@ -10,16 +15,53 @@ function safeRelative(p) {
   return n;
 }
 
+function cors(req, res) {
+  const origin = req.headers.origin;
+  if (!origin) return; // same-origin, curl, server-to-server — nothing to do
+
+  // If ALLOWED_ORIGINS is unset, fall back to "any" — useful for local testing.
+  // Set it in production; that's the whole point.
+  const ok =
+    ALLOWED_ORIGINS.length === 0 || ALLOWED_ORIGINS.includes(origin);
+  if (!ok) return;
+
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'X-File-Count, Content-Disposition, Content-Length'
+  );
+}
+
 export default async function handler(req, res) {
-  // Vercel pre-parses req.query; fall back to '' so an empty prefix means "everything"
-  const prefix = typeof req.query.prefix === 'string' ? req.query.prefix : '';
+  cors(req, res);
+
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'x-backup-key, content-type');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.status(204).end();
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'method not allowed' });
+  }
+
+  // Reject early if the origin is not allowed — clearer than a CORS failure
+  if (req.headers.origin && ALLOWED_ORIGINS.length > 0 &&
+      !ALLOWED_ORIGINS.includes(req.headers.origin)) {
+    return res.status(403).json({ error: 'origin not allowed' });
+  }
+
+  const prefix =
+    typeof req.query.prefix === 'string' ? req.query.prefix : '';
 
   const expected = process.env.BACKUP_PASSWORD;
   if (expected) {
+    // Header first, query fallback (so curl and the old HTML still work)
     const provided =
-      (typeof req.query.key === 'string' ? req.query.key : '') ||
       req.headers['x-backup-key'] ||
-      '';
+      (typeof req.query.key === 'string' ? req.query.key : '');
     if (provided !== expected) {
       return res.status(401).json({ error: 'unauthorized' });
     }
@@ -61,12 +103,12 @@ export default async function handler(req, res) {
     console.log(`✓ built ${count} files, ${zip.length} bytes`);
 
     const date = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `backup-${date}.zip`;
+
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="backup-${date}.zip"`
-    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', String(zip.length));
+    res.setHeader('X-File-Count', String(count));
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).end(zip);
   } catch (err) {
