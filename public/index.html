@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)" />
+<title>CSS Fetcher</title>
+<style>
+  :root{
+    --bg:#fafafa; --panel:#fff; --border:#e4e4e7;
+    --text:#18181b; --muted:#71717a;
+    --accent:#6366f1; --accent-hover:#4f46e5; --accent-fg:#fff;
+    --ring:rgba(99,102,241,.18);
+    --ok:#16a34a; --ok-bg:rgba(22,163,74,.08); --ok-bd:rgba(22,163,74,.25);
+    --err:#dc2626; --err-bg:rgba(220,38,38,.08); --err-bd:rgba(220,38,38,.25);
+    --r:10px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0a0a0b; --panel:#141416; --border:#27272a;
+      --text:#fafafa; --muted:#a1a1aa;
+      --accent:#818cf8; --accent-hover:#a5b4fc; --accent-fg:#0a0a0b;
+      --ring:rgba(129,140,248,.25);
+      --ok:#4ade80; --ok-bg:rgba(74,222,128,.08); --ok-bd:rgba(74,222,128,.22);
+      --err:#f87171; --err-bg:rgba(248,113,113,.08); --err-bd:rgba(248,113,113,.22);
+    }
+  }
+
+  *,*::before,*::after{ box-sizing:border-box }
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  .app{
+    max-width:560px;
+    margin:0 auto;
+    padding:20px 16px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  /* ---------- header ---------- */
+  header{ margin-bottom:18px }
+
+  .title-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+
+  h1{
+    margin:0;
+    font-size:21px;
+    font-weight:700;
+    letter-spacing:-.02em;
+  }
+
+  .badge{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:11px;
+    padding:3px 7px;
+    border-radius:6px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    color:var(--muted);
+    white-space:nowrap;
+  }
+
+  .sub{
+    margin:4px 0 0;
+    font-size:13px;
+    color:var(--muted);
+  }
+
+  /* ---------- tabs ---------- */
+  .tabs{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:4px;
+    padding:4px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:calc(var(--r) + 2px);
+  }
+
+  .tabs button{
+    appearance:none;
+    border:0;
+    background:transparent;
+    color:var(--muted);
+    font:inherit;
+    font-size:13.5px;
+    font-weight:600;
+    padding:9px 4px;
+    border-radius:8px;
+    cursor:pointer;
+    touch-action:manipulation;
+    transition:background .15s ease,color .15s ease;
+  }
+  .tabs button:hover{ color:var(--text) }
+  .tabs button[aria-selected="true"]{
+    background:var(--accent);
+    color:var(--accent-fg);
+  }
+
+  /* ---------- panels ---------- */
+  .panel{ margin-top:14px }
+  .panel > * + *{ margin-top:10px }
+
+  label{
+    display:block;
+    margin-bottom:6px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--muted);
+    letter-spacing:.01em;
+  }
+
+  .hint{
+    font-weight:400;
+    opacity:.75;
+  }
+
+  input[type="url"],
+  input[type="text"],
+  textarea{
+    display:block;
+    width:100%;
+    padding:11px 12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:16px;
+    line-height:1.4;
+    color:var(--text);
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--r);
+    outline:none;
+    transition:border-color .15s ease,box-shadow .15s ease;
+  }
+
+  input::placeholder,
+  textarea::placeholder{ color:var(--muted); opacity:.7 }
+
+  input:focus,
+  textarea:focus{
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--ring);
+  }
+
+  textarea{
+    resize:vertical;
+    min-height:128px;
+  }
+
+  /* ---------- actions ---------- */
+  .actions{ margin-top:16px }
+
+  .btn{
+    appearance:none;
+    width:100%;
+    padding:13px 16px;
+    font:inherit;
+    font-size:15px;
+    font-weight:600;
+    color:var(--accent-fg);
+    background:var(--accent);
+    border:0;
+    border-radius:var(--r);
+    cursor:pointer;
+    touch-action:manipulation;
+    transition:background .15s ease,transform .05s ease,opacity .15s ease;
+  }
+  .btn:hover:not(:disabled){ background:var(--accent-hover) }
+  .btn:active:not(:disabled){ transform:translateY(1px) }
+  .btn:disabled{ opacity:.55; cursor:not-allowed }
+
+  /* ---------- status ---------- */
+  .status{
+    display:none;
+    margin-top:14px;
+    padding:10px 12px;
+    font-size:13px;
+    line-height:1.5;
+    border-radius:var(--r);
+    border:1px solid transparent;
+    overflow-wrap:anywhere;
+    animation:fade .15s ease;
+  }
+  .status.loading,
+  .status.ok,
+  .status.err{ display:block }
+
+  .status.loading{
+    color:var(--muted);
+    background:var(--panel);
+    border-color:var(--border);
+  }
+  .status.ok{
+    color:var(--ok);
+    background:var(--ok-bg);
+    border-color:var(--ok-bd);
+  }
+  .status.err{
+    color:var(--err);
+    background:var(--err-bg);
+    border-color:var(--err-bd);
+  }
+
+  .status.loading::before{
+    content:"";
+    display:inline-block;
+    width:12px;
+    height:12px;
+    margin-right:8px;
+    vertical-align:-2px;
+    border:2px solid currentColor;
+    border-right-color:transparent;
+    border-radius:50%;
+    animation:spin .6s linear infinite;
+  }
+
+  .status b{ font-weight:700 }
+
+  @keyframes spin{ to{ transform:rotate(360deg) } }
+  @keyframes fade{ from{ opacity:0; transform:translateY(-2px) } to{ opacity:1; transform:none } }
+
+  /* ---------- larger screens ---------- */
+  @media (min-width:480px){
+    .app{ padding-top:28px }
+    h1{ font-size:23px }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <div class="title-row">
+      <h1>CSS Fetcher</h1>
+      <span class="badge">/api/fetch-css</span>
+    </div>
+    <p class="sub">Fetch stylesheets · bundle as ZIP</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Fetch mode">
+    <button role="tab" data-mode="single" aria-selected="true">Single</button>
+    <button role="tab" data-mode="multi" aria-selected="false">Multiple</button>
+    <button role="tab" data-mode="scrape" aria-selected="false">Scrape</button>
+  </nav>
+
+  <section class="panel" data-panel="single">
+    <div>
+      <label for="single-url">CSS URL</label>
+      <input id="single-url" type="url" inputmode="url" autocomplete="off"
+             spellcheck="false" placeholder="https://cdn.example.com/main.css" />
+    </div>
+    <div>
+      <label for="single-name">Filename <span class="hint">(optional)</span></label>
+      <input id="single-name" type="text" autocomplete="off"
+             spellcheck="false" placeholder="auto from URL" />
+    </div>
+  </section>
+
+  <section class="panel" data-panel="multi" hidden>
+    <div>
+      <label for="multi-urls">CSS URLs <span class="hint">(one per line)</span></label>
+      <textarea id="multi-urls" spellcheck="false" autocapitalize="off"
+                placeholder="https://a.com/reset.css&#10;https://b.com/theme.css"></textarea>
+    </div>
+  </section>
+
+  <section class="panel" data-panel="scrape" hidden>
+    <div>
+      <label for="scrape-urls">Page URLs <span class="hint">(one per line)</span></label>
+      <textarea id="scrape-urls" spellcheck="false" autocapitalize="off"
+                placeholder="https://example.com&#10;https://other.com"></textarea>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button id="fetch-btn" class="btn" type="button">Fetch &amp; Download</button>
+  </div>
+
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // Same-origin when hosted on Vercel; absolute fallback for local file:// preview.
+  const API = location.hostname
+    ? '/api/fetch-css'
+    : 'https://jfr-blob-db.vercel.app/api/fetch-css';
+
+  const tabs     = document.querySelectorAll('.tabs button');
+  const panels   = document.querySelectorAll('.panel');
+  const btn      = document.getElementById('fetch-btn');
+  const statusEl = document.getElementById('status');
+  const BTN_LABEL = btn.textContent;
+
+  let mode = 'single';
+
+  /* ---------- helpers ---------- */
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+    ));
+  }
+
+  function fmtBytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(2) + ' MB';
+  }
+
+  function setStatus(kind, html) {
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+    statusEl.innerHTML = html || '';
+  }
+
+  function saveBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function parseLines(el) {
+    return el.value.split('\n').map(s => s.trim()).filter(Boolean);
+  }
+
+  function setBusy(busy) {
+    btn.disabled = busy;
+    btn.textContent = busy ? 'Working…' : BTN_LABEL;
+  }
+
+  /* ---------- tabs ---------- */
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      mode = tab.dataset.mode;
+      tabs.forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+      panels.forEach(p => { p.hidden = p.dataset.panel !== mode; });
+      setStatus('', '');
+    });
+  });
+
+  /* ---------- fetch ---------- */
+
+  async function handleSingle() {
+    const url  = document.getElementById('single-url').value.trim();
+    const name = document.getElementById('single-name').value.trim();
+
+    if (!url) return setStatus('err', 'Enter a CSS URL.');
+
+    setBusy(true);
+    setStatus('loading', 'Fetching stylesheet…');
+
+    try {
+      const qs = new URLSearchParams({ url });
+      if (name) qs.set('filename', name);
+
+      const res = await fetch(API + '?' + qs.toString());
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || ('HTTP ' + res.status));
+      }
+
+      const blob = await res.blob();
+      const filename =
+        res.headers.get('X-Filename') || name || 'style.css';
+
+      saveBlob(blob, filename);
+      setStatus('ok',
+        'Downloaded <b>' + esc(filename) + '</b> · ' + fmtBytes(blob.size));
+    } catch (err) {
+      setStatus('err', esc(err.message || err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleBulk() {
+    const textarea = document.getElementById(
+      mode === 'multi' ? 'multi-urls' : 'scrape-urls'
+    );
+    const list = parseLines(textarea);
+
+    if (!list.length) {
+      return setStatus('err',
+        mode === 'multi'
+          ? 'Enter at least one CSS URL.'
+          : 'Enter at least one page URL.');
+    }
+
+    setBusy(true);
+    setStatus('loading',
+      mode === 'multi'
+        ? 'Fetching stylesheets…'
+        : 'Scraping pages & fetching stylesheets…');
+
+    try {
+      const payload = mode === 'multi' ? { urls: list } : { scrape: list };
+
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || ('HTTP ' + res.status));
+      }
+
+      const blob    = await res.blob();
+      const fetched = res.headers.get('X-Fetched');
+
+      saveBlob(blob, 'css-bundle.zip');
+      setStatus('ok',
+        'Downloaded <b>css-bundle.zip</b> · ' + fmtBytes(blob.size) +
+        (fetched ? ' · ' + esc(fetched) + ' fetched' : ''));
+    } catch (err) {
+      setStatus('err', esc(err.message || err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  btn.addEventListener('click', () => {
+    if (mode === 'single') handleSingle();
+    else handleBulk();
+  });
+
+  /* Enter on the single URL field submits */
+  document.getElementById('single-url').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); handleSingle(); }
+  });
+
+  /* Cmd/Ctrl + Enter submits from any textarea */
+  document.querySelectorAll('textarea').forEach(ta => {
+    ta.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleBulk();
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
