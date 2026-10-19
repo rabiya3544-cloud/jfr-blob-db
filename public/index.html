@@ -82,7 +82,7 @@
   /* ---------- tabs ---------- */
   .tabs{
     display:grid;
-    grid-template-columns:repeat(3,1fr);
+    grid-template-columns:repeat(4,1fr);
     gap:4px;
     padding:4px;
     background:var(--panel);
@@ -130,6 +130,7 @@
 
   input[type="url"],
   input[type="text"],
+  input[type="number"],
   textarea{
     display:block;
     width:100%;
@@ -157,6 +158,71 @@
   textarea{
     resize:vertical;
     min-height:128px;
+  }
+
+  /* ---------- advanced options ---------- */
+  details.adv{
+    border:1px solid var(--border);
+    border-radius:var(--r);
+    background:var(--panel);
+    overflow:hidden;
+  }
+  details.adv summary{
+    padding:11px 12px;
+    font-size:13px;
+    font-weight:600;
+    color:var(--muted);
+    cursor:pointer;
+    list-style:none;
+    user-select:none;
+  }
+  details.adv summary::-webkit-details-marker{ display:none }
+
+  .adv-body{
+    padding:0 12px 12px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  .check{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:0;
+    font-size:13px;
+    font-weight:500;
+    color:var(--text);
+    cursor:pointer;
+  }
+  .check input[type="checkbox"]{
+    width:17px; height:17px;
+    margin:0;
+    accent-color:var(--accent);
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .check code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12px;
+    background:var(--bg);
+    border:1px solid var(--border);
+    padding:0 4px;
+    border-radius:4px;
+  }
+
+  .row{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;
+  }
+  .row label{
+    margin-bottom:4px;
+    font-size:11.5px;
+  }
+  .row input[type="number"]{
+    padding:8px 10px;
+    font-size:14px;
   }
 
   /* ---------- actions ---------- */
@@ -243,15 +309,16 @@
   <header>
     <div class="title-row">
       <h1>CSS Fetcher</h1>
-      <span class="badge">/api/fetch-css</span>
+      <span class="badge" id="api-badge">/api/fetch-css</span>
     </div>
     <p class="sub">Fetch stylesheets · bundle as ZIP</p>
   </header>
 
   <nav class="tabs" role="tablist" aria-label="Fetch mode">
     <button role="tab" data-mode="single" aria-selected="true">Single</button>
-    <button role="tab" data-mode="multi" aria-selected="false">Multiple</button>
+    <button role="tab" data-mode="multi"  aria-selected="false">Multi</button>
     <button role="tab" data-mode="scrape" aria-selected="false">Scrape</button>
+    <button role="tab" data-mode="bundle" aria-selected="false">Bundle</button>
   </nav>
 
   <section class="panel" data-panel="single">
@@ -283,6 +350,38 @@
     </div>
   </section>
 
+  <section class="panel" data-panel="bundle" hidden>
+    <div>
+      <label for="bundle-urls">CSS URLs <span class="hint">(one per line · downloads assets too)</span></label>
+      <textarea id="bundle-urls" spellcheck="false" autocapitalize="off"
+                placeholder="https://github.githubassets.com/assets/github-0b4a3ee3d18dc2f0.css&#10;https://cdn.example.com/main.css"></textarea>
+    </div>
+
+    <details class="adv">
+      <summary>Advanced options</summary>
+      <div class="adv-body">
+        <label class="check">
+          <input id="opt-recursive" type="checkbox" checked />
+          <span>Follow <code>@import</code> recursively</span>
+        </label>
+        <div class="row">
+          <div>
+            <label for="opt-maxDepth">Max depth</label>
+            <input id="opt-maxDepth" type="number" min="0" max="20" inputmode="numeric" placeholder="5" />
+          </div>
+          <div>
+            <label for="opt-maxAssets">Max assets</label>
+            <input id="opt-maxAssets" type="number" min="1" inputmode="numeric" placeholder="300" />
+          </div>
+          <div>
+            <label for="opt-maxBytes">Max MB</label>
+            <input id="opt-maxBytes" type="number" min="1" inputmode="numeric" placeholder="20" />
+          </div>
+        </div>
+      </div>
+    </details>
+  </section>
+
   <div class="actions">
     <button id="fetch-btn" class="btn" type="button">Fetch &amp; Download</button>
   </div>
@@ -294,20 +393,28 @@
 (function () {
   'use strict';
 
-  // Same-origin when hosted on Vercel; absolute fallback for local file:// preview.
-  const API = location.hostname
-    ? '/api/fetch-css'
-    : 'https://jfr-blob-db.vercel.app/api/fetch-css';
+  const ORIGIN = location.hostname ? '' : 'https://jfr-blob-db.vercel.app';
+  const ENDPOINTS = {
+    single: ORIGIN + '/api/fetch-css',
+    multi:  ORIGIN + '/api/fetch-css',
+    scrape: ORIGIN + '/api/fetch-css',
+    bundle: ORIGIN + '/api/fetch-css-bundle',
+  };
+  const BADGE = {
+    single: '/api/fetch-css',
+    multi:  '/api/fetch-css',
+    scrape: '/api/fetch-css',
+    bundle: '/api/fetch-css-bundle',
+  };
 
   const tabs     = document.querySelectorAll('.tabs button');
   const panels   = document.querySelectorAll('.panel');
   const btn      = document.getElementById('fetch-btn');
   const statusEl = document.getElementById('status');
+  const badgeEl  = document.getElementById('api-badge');
   const BTN_LABEL = btn.textContent;
 
   let mode = 'single';
-
-  /* ---------- helpers ---------- */
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, c => (
@@ -346,45 +453,35 @@
     btn.textContent = busy ? 'Working…' : BTN_LABEL;
   }
 
-  /* ---------- tabs ---------- */
-
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       mode = tab.dataset.mode;
       tabs.forEach(t => t.setAttribute('aria-selected', String(t === tab)));
       panels.forEach(p => { p.hidden = p.dataset.panel !== mode; });
+      badgeEl.textContent = BADGE[mode];
       setStatus('', '');
     });
   });
 
-  /* ---------- fetch ---------- */
-
   async function handleSingle() {
     const url  = document.getElementById('single-url').value.trim();
     const name = document.getElementById('single-name').value.trim();
-
     if (!url) return setStatus('err', 'Enter a CSS URL.');
 
     setBusy(true);
     setStatus('loading', 'Fetching stylesheet…');
-
     try {
       const qs = new URLSearchParams({ url });
       if (name) qs.set('filename', name);
-
-      const res = await fetch(API + '?' + qs.toString());
+      const res = await fetch(ENDPOINTS.single + '?' + qs.toString());
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || ('HTTP ' + res.status));
       }
-
       const blob = await res.blob();
-      const filename =
-        res.headers.get('X-Filename') || name || 'style.css';
-
+      const filename = res.headers.get('X-Filename') || name || 'style.css';
       saveBlob(blob, filename);
-      setStatus('ok',
-        'Downloaded <b>' + esc(filename) + '</b> · ' + fmtBytes(blob.size));
+      setStatus('ok', 'Downloaded <b>' + esc(filename) + '</b> · ' + fmtBytes(blob.size));
     } catch (err) {
       setStatus('err', esc(err.message || err));
     } finally {
@@ -393,41 +490,32 @@
   }
 
   async function handleBulk() {
-    const textarea = document.getElementById(
-      mode === 'multi' ? 'multi-urls' : 'scrape-urls'
-    );
+    const textarea = document.getElementById(mode === 'multi' ? 'multi-urls' : 'scrape-urls');
     const list = parseLines(textarea);
-
     if (!list.length) {
-      return setStatus('err',
-        mode === 'multi'
-          ? 'Enter at least one CSS URL.'
-          : 'Enter at least one page URL.');
+      return setStatus('err', mode === 'multi'
+        ? 'Enter at least one CSS URL.'
+        : 'Enter at least one page URL.');
     }
 
     setBusy(true);
-    setStatus('loading',
-      mode === 'multi'
-        ? 'Fetching stylesheets…'
-        : 'Scraping pages & fetching stylesheets…');
+    setStatus('loading', mode === 'multi'
+      ? 'Fetching stylesheets…'
+      : 'Scraping pages & fetching stylesheets…');
 
     try {
       const payload = mode === 'multi' ? { urls: list } : { scrape: list };
-
-      const res = await fetch(API, {
+      const res = await fetch(ENDPOINTS[mode], {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || ('HTTP ' + res.status));
       }
-
-      const blob    = await res.blob();
+      const blob = await res.blob();
       const fetched = res.headers.get('X-Fetched');
-
       saveBlob(blob, 'css-bundle.zip');
       setStatus('ok',
         'Downloaded <b>css-bundle.zip</b> · ' + fmtBytes(blob.size) +
@@ -439,22 +527,69 @@
     }
   }
 
-  btn.addEventListener('click', () => {
-    if (mode === 'single') handleSingle();
-    else handleBulk();
-  });
+  async function handleBundle() {
+    const list = parseLines(document.getElementById('bundle-urls'));
+    if (!list.length) return setStatus('err', 'Enter at least one CSS URL.');
 
-  /* Enter on the single URL field submits */
+    const opts = { urls: list };
+    if (!document.getElementById('opt-recursive').checked) opts.recursive = false;
+
+    const maxDepth  = parseInt(document.getElementById('opt-maxDepth').value, 10);
+    const maxAssets = parseInt(document.getElementById('opt-maxAssets').value, 10);
+    const maxMB     = parseInt(document.getElementById('opt-maxBytes').value, 10);
+    if (Number.isFinite(maxDepth)  && maxDepth  >= 0) opts.maxDepth  = maxDepth;
+    if (Number.isFinite(maxAssets) && maxAssets > 0)  opts.maxAssets = maxAssets;
+    if (Number.isFinite(maxMB)     && maxMB     > 0)  opts.maxBytes  = maxMB * 1024 * 1024;
+
+    setBusy(true);
+    setStatus('loading', 'Fetching CSS &amp; assets… this can take a while for large bundles.');
+
+    try {
+      const res = await fetch(ENDPOINTS.bundle, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(opts)
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || ('HTTP ' + res.status));
+      }
+      const blob       = await res.blob();
+      const cssCount   = res.headers.get('X-Css-Count');
+      const assetCount = res.headers.get('X-Asset-Count');
+
+      saveBlob(blob, 'css-bundle-with-assets.zip');
+
+      let msg = 'Downloaded <b>css-bundle-with-assets.zip</b> · ' + fmtBytes(blob.size);
+      if (cssCount !== null || assetCount !== null) {
+        msg += ' · ' + (cssCount || 0) + ' css, ' + (assetCount || 0) + ' assets';
+      }
+      setStatus('ok', msg);
+    } catch (err) {
+      setStatus('err', esc(err.message || err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function submitCurrent() {
+    if (btn.disabled) return;
+    if (mode === 'single') return handleSingle();
+    if (mode === 'bundle') return handleBundle();
+    return handleBulk();
+  }
+
+  btn.addEventListener('click', submitCurrent);
+
   document.getElementById('single-url').addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); handleSingle(); }
+    if (e.key === 'Enter') { e.preventDefault(); submitCurrent(); }
   });
 
-  /* Cmd/Ctrl + Enter submits from any textarea */
   document.querySelectorAll('textarea').forEach(ta => {
     ta.addEventListener('keydown', e => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
-        handleBulk();
+        submitCurrent();
       }
     });
   });
