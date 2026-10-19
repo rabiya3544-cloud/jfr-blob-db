@@ -1,8 +1,9 @@
 {
   "functions": {
-    "api/backup.js":     { "maxDuration": 300 },
-    "api/fetch-css.js":  { "maxDuration": 60 },
-    "api/*":             { "maxDuration": 10 }
+    "api/backup.js":         { "maxDuration": 300 },
+    "api/fetch-css.js":      { "maxDuration": 60 },
+    "api/fetch-css-bundle.js": { "maxDuration": 60 },
+    "api/*":                 { "maxDuration": 10 }
   },
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
