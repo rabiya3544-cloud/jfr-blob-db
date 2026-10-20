@@ -2,6 +2,7 @@
   "functions": {
     "api/backup.js":         { "maxDuration": 300 },
     "api/fetch-css.js":      { "maxDuration": 60 },
+    "api/css-stats.js":      { "maxDuration": 60 },
     "api/fetch-css-bundle.js": { "maxDuration": 60 },
     "api/*":                 { "maxDuration": 10 }
   },
